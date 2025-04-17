@@ -20,8 +20,12 @@ Thread(target=run).start()
 intents = discord.Intents.default()
 intents.message_content = True
 
-# Get bot tokens from environment (secrets)
-BOT_TOKENS = os.environ.get("BOT_TOKENS", "").split(",")
+# Load tokens from environment variables
+BOT_TOKENS = [
+    os.getenv("TOKEN1"),
+    os.getenv("TOKEN2"),
+    os.getenv("TOKEN3")
+]
 
 spamming = False
 target_mention = None
@@ -49,7 +53,8 @@ class BotClient(discord.Client):
             if not spamming:
                 spamming = True
                 print(f"Started spamming {target_mention}")
-                self.spam_task = asyncio.create_task(self.spam_loop(message.channel))
+                for bot in bots:
+                    bot.spam_task = asyncio.create_task(bot.spam_loop(message.channel))
 
         elif content == "!stop":
             if spamming:
@@ -69,9 +74,11 @@ class BotClient(discord.Client):
             pass
 
 # ====== Start All Bots ======
-for token in BOT_TOKENS:
-    bot = BotClient(token)
-    asyncio.create_task(bot.start(token))
+async def start_all():
+    for token in BOT_TOKENS:
+        if token:  # Ensure it's not None
+            client = BotClient(token)
+            asyncio.create_task(client.start(token))
 
-# Needed to keep all bots running
+asyncio.run(start_all())
 asyncio.get_event_loop().run_forever()
