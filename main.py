@@ -53,22 +53,22 @@ class BotClient(discord.Client):
                 self.mention_target = message.mentions[0].mention
                 self.spamming = True
                 self.spam_task = asyncio.create_task(self.spam_loop(message.channel))
-                await message.channel.send(f"{self.user} started spamming {self.mention_target}!")
+                await message.channel.send(f"{self.user}: спамлю {self.mention_target}!")
             else:
-                await message.channel.send("Please mention someone like !spam @user")
+                await message.channel.send("сука даун блять")
 
         elif content == "!стоп" and self.spamming:
             self.spamming = False
             if self.spam_task:
                 self.spam_task.cancel()
                 self.spam_task = None
-            await message.channel.send(f"{self.user} stopped spamming.")
+            await message.channel.send(f"{self.user}: перестаю спамить.")
 
     async def spam_loop(self, channel):
         try:
             while self.spamming:
                 await channel.send(f"{self.mention_target} {self.mention_target} {self.mention_target}")
-                await asyncio.sleep(1)  # 1 second to avoid rate limits
+                await asyncio.sleep(1.2)  # 1 second to avoid rate limits
         except asyncio.CancelledError:
             pass
 
