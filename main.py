@@ -80,5 +80,9 @@ async def start_all():
             client = BotClient(token)
             asyncio.create_task(client.start(token))
 
-asyncio.run(start_all())
-asyncio.get_event_loop().run_forever()
+async def main():
+    await start_all()
+    while True:
+        await asyncio.sleep(3600)
+
+asyncio.run(main())
