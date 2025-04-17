@@ -1,12 +1,11 @@
-import os
 import discord
 import asyncio
-from discord.ext import commands
+import os
 from flask import Flask
-import threading
+from threading import Thread
 
-# === Flask Keep-Alive ===
-app = Flask(__name__)
+# Flask app for keeping the bot alive
+app = Flask('')
 
 @app.route('/')
 def home():
@@ -15,66 +14,73 @@ def home():
 def run_flask():
     app.run(host='0.0.0.0', port=8080)
 
-threading.Thread(target=run_flask).start()
+def keep_alive():
+    thread = Thread(target=run_flask)
+    thread.start()
 
-# === Shared Global Spam State ===
-spam_target = None
-spamming = False
+# Load tokens (make sure these are set as environment variables in your hosting platform)
+BOT_TOKENS = [
+    os.getenv("TOKEN1"),
+    os.getenv("TOKEN2"),
+    os.getenv("TOKEN3"),
+]
 
-# === Bot Logic ===
 intents = discord.Intents.default()
 intents.message_content = True
+intents.messages = True
+intents.guilds = True
 
-class BotClient(commands.Bot):
+class BotClient(discord.Client):
     def __init__(self, token):
-        super().__init__(command_prefix='!', intents=intents)
+        super().__init__(intents=intents)
         self.token = token
+        self.spamming = False
         self.spam_task = None
+        self.mention_target = None
 
-        @self.event
-        async def on_ready():
-            print(f'{self.user} is online!')
+    async def on_ready(self):
+        print(f"{self.user} is online!")
 
-        @self.event
-        async def on_message(message):
-            global spam_target, spamming
+    async def on_message(self, message):
+        if message.author.bot:
+            return
 
-            if message.author.bot:
-                return
+        content = message.content.strip()
+        print(f"[{self.user}] Message received: {content}")
 
-            if message.content.startswith('!spam ') and message.mentions:
-                spam_target = message.mentions[0]
-                spamming = True
+        if content.startswith("!спам") and not self.spamming:
+            if message.mentions:
+                self.mention_target = message.mentions[0].mention
+                self.spamming = True
+                self.spam_task = asyncio.create_task(self.spam_loop(message.channel))
+                await message.channel.send(f"{self.user} started spamming {self.mention_target}!")
+            else:
+                await message.channel.send("Please mention someone like !spam @user")
 
-                # start spamming if not already
-                if not self.spam_task or self.spam_task.done():
-                    self.spam_task = asyncio.create_task(self.spam_loop(message.channel))
+        elif content == "!стоп" and self.spamming:
+            self.spamming = False
+            if self.spam_task:
+                self.spam_task.cancel()
+                self.spam_task = None
+            await message.channel.send(f"{self.user} stopped spamming.")
 
-            elif message.content.strip() == '!stop':
-                spamming = False
+    async def spam_loop(self, channel):
+        try:
+            while self.spamming:
+                await channel.send(f"{self.mention_target} {self.mention_target} {self.mention_target}")
+                await asyncio.sleep(1)  # 1 second to avoid rate limits
+        except asyncio.CancelledError:
+            pass
 
-        async def spam_loop(self, channel):
-            global spam_target, spamming
-            while spamming:
-                try:
-                    await channel.send(f"{spam_target.mention} {spam_target.mention} {spam_target.mention}")
-                    await asyncio.sleep(1)
-                except Exception as e:
-                    print(f"{self.user} failed to spam: {e}")
-                    break
+# Start Flask to keep the service alive
+keep_alive()
 
-# === Load Tokens and Start All Bots ===
-BOT_TOKENS = [os.getenv("TOKEN1"), os.getenv("TOKEN2"), os.getenv("TOKEN3")]
+# Instantiate all bots
+bots = [BotClient(token) for token in BOT_TOKENS if token]
 
-async def start_all():
-    for token in BOT_TOKENS:
-        if token:
-            client = BotClient(token)
-            asyncio.create_task(client.start(token))
+# Run all bots concurrently
+async def run_all_bots():
+    await asyncio.gather(*(bot.start(bot.token) for bot in bots))
 
-async def main():
-    await start_all()
-    while True:
-        await asyncio.sleep(3600)
-
-asyncio.run(main())
+# Run the bots
+asyncio.run(run_all_bots())
